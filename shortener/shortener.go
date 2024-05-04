@@ -27,6 +27,7 @@ func (us *UrlShortener) Redirect(w http.ResponseWriter, r *http.Request) {
 	url := us.storage.Get(key)
 	if url == "" {
 		http.NotFound(w, r)
+		return
 	}
 
 	http.Redirect(w, r, url, http.StatusFound)

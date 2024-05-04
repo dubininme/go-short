@@ -1,7 +1,5 @@
 package key
 
-import "fmt"
-
 type KeyGenerator struct {
 	keyChar []byte
 }
@@ -12,7 +10,6 @@ func NewKeyGenerator(keyChar []byte) *KeyGenerator {
 
 func (g KeyGenerator) Generate(n int) string {
 	if n == 0 {
-		fmt.Println("we are here")
 		return string(g.keyChar[0])
 	}
 

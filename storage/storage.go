@@ -80,21 +80,23 @@ func (s *UrlStorage) save(key, url string) error {
 }
 
 func (s *UrlStorage) load() error {
-	if _, err := s.file.Seek(0, 0); err != nil {
+	if _, err := s.file.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
 
 	decoder := gob.NewDecoder(s.file)
+
 	var err error
-	for err == nil {
-		var rec record
-		if err = decoder.Decode(&rec); err == nil {
+	var rec record
+	for {
+		err = decoder.Decode(&rec)
+		if err == nil {
 			s.Set(rec.Key, rec.URL)
 		}
-	}
 
-	if err == io.EOF {
-		return nil
+		if err == io.EOF {
+			return nil
+		}
 	}
 
 	return err
