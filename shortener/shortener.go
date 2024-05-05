@@ -18,7 +18,7 @@ type UrlShortener struct {
 	storage Storage
 }
 
-func NewUrlStorage(storage Storage) *UrlShortener {
+func NewUrlShortnener(storage Storage) *UrlShortener {
 	return &UrlShortener{storage: storage}
 }
 

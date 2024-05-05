@@ -14,7 +14,7 @@ var keyChar = []byte("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV
 func main() {
 	keyGen := key.NewKeyGenerator(keyChar)
 	storage := storage.NewUrlStorage(keyGen, "storage.gob")
-	shortener := shortener.NewUrlStorage(storage)
+	shortener := shortener.NewUrlShortnener(storage)
 
 	http.HandleFunc("/", shortener.Redirect)
 	http.HandleFunc("/add", shortener.Add)

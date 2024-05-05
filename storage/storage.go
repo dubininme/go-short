@@ -8,6 +8,8 @@ import (
 	"sync"
 )
 
+const saveQueueLength = 1000
+
 type record struct {
 	Key string
 	URL string
@@ -16,21 +18,22 @@ type record struct {
 type UrlStorage struct {
 	urls   map[string]string
 	mu     sync.RWMutex
-	file   *os.File
 	keyGen Generator
+	save   chan record
 }
 
 func NewUrlStorage(keyGen Generator, filename string) *UrlStorage {
-	s := &UrlStorage{urls: map[string]string{}, keyGen: keyGen}
-	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		log.Fatal("Error opening URLStorage:", err)
+	s := &UrlStorage{
+		urls:   map[string]string{},
+		keyGen: keyGen,
+		save:   make(chan record, saveQueueLength),
 	}
 
-	s.file = f
-	if err := s.load(); err != nil {
-		log.Fatal("Error loading URLStorage:", err)
+	if err := s.load(filename); err != nil {
+		log.Fatal("Error loading URLStorage: ", err)
 	}
+
+	go s.saveLoop(filename)
 	return s
 }
 
@@ -63,10 +66,8 @@ func (s *UrlStorage) Count() int {
 func (s *UrlStorage) Put(url string) string {
 	for {
 		key := s.keyGen.Generate(s.Count())
-		if ok := s.Set(key, url); ok {
-			if err := s.save(key, url); err != nil {
-				log.Println("Error saving to URLStorage:", err)
-			}
+		if s.Set(key, url) {
+			s.save <- record{key, url}
 			return key
 		}
 	}
@@ -74,30 +75,47 @@ func (s *UrlStorage) Put(url string) string {
 	panic("shouldn't get here")
 }
 
-func (s *UrlStorage) save(key, url string) error {
-	encoder := gob.NewEncoder(s.file)
-	return encoder.Encode(record{key, url})
+func (s *UrlStorage) saveLoop(filename string) error {
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatal("Error opening URLStorage:", err)
+	}
+	defer f.Close()
+
+	encoder := gob.NewEncoder(f)
+	for {
+		r := <-s.save
+		log.Println("saving url to storage in loop")
+		if err := encoder.Encode(&r); err != nil {
+			log.Println("Error saving to URLStore: ", err)
+		}
+	}
 }
 
-func (s *UrlStorage) load() error {
-	if _, err := s.file.Seek(0, io.SeekStart); err != nil {
+func (s *UrlStorage) load(filename string) error {
+	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Println("Error opening URLStorage: ", err)
+		return err
+	}
+	defer f.Close()
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		log.Println("Error seek URLStorage: ", err)
 		return err
 	}
 
-	decoder := gob.NewDecoder(s.file)
-
-	var err error
+	decoder := gob.NewDecoder(f)
 	var rec record
 	for {
 		err = decoder.Decode(&rec)
-		if err == nil {
-			s.Set(rec.Key, rec.URL)
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			log.Println("Error decoding rec: ", rec)
+			return err
 		}
 
-		if err == io.EOF {
-			return nil
-		}
+		s.Set(rec.Key, rec.URL)
 	}
-
-	return err
 }
