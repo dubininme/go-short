@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"encoding/gob"
+	"encoding/json"
 	"io"
 	"log"
 	"os"
@@ -82,7 +82,7 @@ func (s *UrlStorage) saveLoop(filename string) error {
 	}
 	defer f.Close()
 
-	encoder := gob.NewEncoder(f)
+	encoder := json.NewEncoder(f)
 	for {
 		r := <-s.save
 		log.Println("saving url to storage in loop")
@@ -104,7 +104,7 @@ func (s *UrlStorage) load(filename string) error {
 		return err
 	}
 
-	decoder := gob.NewDecoder(f)
+	decoder := json.NewDecoder(f)
 	var rec record
 	for {
 		err = decoder.Decode(&rec)
