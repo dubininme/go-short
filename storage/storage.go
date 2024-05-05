@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"os"
@@ -23,6 +24,10 @@ type UrlStorage struct {
 }
 
 func NewUrlStorage(keyGen Generator, filename string) *UrlStorage {
+	if filename == "" {
+		log.Fatal("Error loading URLStorage: filename is empty")
+	}
+
 	s := &UrlStorage{
 		urls:   map[string]string{},
 		keyGen: keyGen,
@@ -37,23 +42,28 @@ func NewUrlStorage(keyGen Generator, filename string) *UrlStorage {
 	return s
 }
 
-func (s *UrlStorage) Get(key string) string {
+func (s *UrlStorage) Get(key, url *string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.urls[key]
+	if cachedUrl, ok := s.urls[*key]; ok {
+		*url = cachedUrl
+		return nil
+	}
+
+	return errors.New("key not found")
 }
 
-func (s *UrlStorage) Set(key, url string) bool {
+func (s *UrlStorage) Set(key, url *string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, present := s.urls[key]; present {
-		return false
+	if _, present := s.urls[*key]; present {
+		return errors.New("key already exists")
 	}
 
-	s.urls[key] = url
-	return true
+	s.urls[*key] = *url
+	return nil
 }
 
 func (s *UrlStorage) Count() int {
@@ -63,16 +73,20 @@ func (s *UrlStorage) Count() int {
 	return len(s.urls)
 }
 
-func (s *UrlStorage) Put(url string) string {
+func (s *UrlStorage) Put(url, key *string) error {
 	for {
-		key := s.keyGen.Generate(s.Count())
-		if s.Set(key, url) {
-			s.save <- record{key, url}
-			return key
+		// TODO refactor if needs rewrite of input key
+		*key = s.keyGen.Generate(s.Count())
+		if err := s.Set(key, url); err == nil {
+			break
 		}
 	}
 
-	panic("shouldn't get here")
+	if s.save != nil {
+		s.save <- record{*key, *url}
+	}
+
+	return nil
 }
 
 func (s *UrlStorage) saveLoop(filename string) error {
@@ -116,6 +130,6 @@ func (s *UrlStorage) load(filename string) error {
 			return err
 		}
 
-		s.Set(rec.Key, rec.URL)
+		s.Set(&rec.Key, &rec.URL)
 	}
 }

@@ -24,12 +24,15 @@ func NewUrlShortnener(storage Storage) *UrlShortener {
 
 func (us *UrlShortener) Redirect(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Path[1:]
-	url := us.storage.Get(key)
-	if url == "" {
+	if key == "" {
 		http.NotFound(w, r)
 		return
 	}
-
+	var url string
+	if err := us.storage.Get(&key, &url); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
@@ -41,6 +44,9 @@ func (us *UrlShortener) Add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key := us.storage.Put(url)
+	var key string
+	if err := us.storage.Put(&url, &key); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 	fmt.Fprintf(w, "%s", key)
 }

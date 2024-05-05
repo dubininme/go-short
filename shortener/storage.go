@@ -1,6 +1,6 @@
 package shortener
 
 type Storage interface {
-	Get(key string) string
-	Put(url string) string
+	Get(key, url *string) error
+	Put(url, key *string) error
 }
